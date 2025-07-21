@@ -1,0 +1,94 @@
+%% Project: Power Loss in Tracked Vehicle with Suspension Compression
+clc; clear; close all;
+
+%% Parameters
+simTime = 50;                 % Simulation time (seconds)
+dt = 0.1;                     % Time step
+time = 0:dt:simTime;
+
+% Mechanical Parameters
+motor_power = 500;           % Input motor power in Watts
+gear_efficiency = 0.95;      % Gear transmission efficiency
+friction_loss = 0.05;        % Constant rolling resistance
+initial_suspension = 0.1;    % Initial suspension compression (m)
+mass = 200;                  % Mass in kg
+g = 9.81;
+
+% PID Controller for Power Output
+Kp = 10; Ki = 1; Kd = 2;
+int_err = 0; prev_err = 0;
+
+% Preallocate Arrays
+power_output = zeros(size(time));
+power_loss = zeros(size(time));
+suspension_disp = initial_suspension + 0.05*sin(0.5*time); % Simulated compression
+efficiency = zeros(size(time));
+pid_output = zeros(size(time));
+
+%% Simulation Loop
+for i = 2:length(time)
+    setpoint = motor_power;
+
+    % Losses due to Gears, Friction, Compression increasing resistance
+    compression_factor = 1 + 2*suspension_disp(i);  % More compression = more tension = more loss
+    total_loss_factor = (1 - gear_efficiency - friction_loss) * compression_factor;
+
+    % PID Control to maintain power delivery
+    error = setpoint - power_output(i-1);
+    int_err = int_err + error * dt;
+    der_err = (error - prev_err)/dt;
+    
+    control_signal = Kp*error + Ki*int_err + Kd*der_err;
+    control_signal = max(0, control_signal); 
+
+    % Power Output
+    actual_power = (motor_power - total_loss_factor*motor_power) + control_signal;
+    power_output(i) = actual_power;
+    power_loss(i) = motor_power - actual_power;
+    efficiency(i) = actual_power / motor_power;
+    pid_output(i) = control_signal;
+    prev_err = error;
+end
+
+% Power Output vs Time
+figure;
+plot(time, power_output, 'b', 'LineWidth', 2);
+hold on;
+yline(motor_power, '--r', 'Target Power');
+xlabel('Time (s)');
+ylabel('Power Delivered (W)');
+title('Power Output vs Time');
+grid on;
+
+% Power Loss vs Time
+figure;
+plot(time, power_loss, 'r', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Power Loss (W)');
+title('Power Loss due to Friction + Compression');
+grid on;
+
+% Suspension Compression vs Time
+figure;
+plot(time, suspension_disp, 'k', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Suspension Displacement (m)');
+title('Suspension Compression Over Time');
+grid on;
+
+% Efficiency over Time
+figure;
+plot(time, efficiency*100, 'g', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Efficiency (%)');
+title('System Efficiency vs Time');
+grid on;
+
+% PID Control Output
+figure;
+plot(time, pid_output, 'm', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('PID Control Signal (W)');
+title('PID Controller Response');
+grid on;
+
